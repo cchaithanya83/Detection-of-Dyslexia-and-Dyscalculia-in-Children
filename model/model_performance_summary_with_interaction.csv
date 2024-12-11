@@ -1,0 +1,6 @@
+Model,Accuracy
+Random Forest,1.0
+SVM,0.9983333333333333
+K-Nearest Neighbors,0.9983333333333333
+Logistic Regression,1.0
+Naive Bayes,0.9983333333333333
