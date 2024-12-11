@@ -1,4 +1,3 @@
-// pages/ReadingTest.tsx
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -7,14 +6,12 @@ const ReadingTest: React.FC = () => {
   const [readingSpeed, setReadingSpeed] = useState(0);
   const [readingAccuracy, setReadingAccuracy] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(
-    null
-  );
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const navigate = useNavigate();
-
+  const [audioURL, setAudioURL] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunks: Blob[] = [];
+  const startTimeRef = useRef<number | null>(null); // To track the start time
+  const navigate = useNavigate();
 
   const questions = [
     "This is a sample sentence for you to read aloud.",
@@ -22,75 +19,81 @@ const ReadingTest: React.FC = () => {
     "Tailwind CSS provides utility-first styling.",
   ];
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setRecordingStartTime(Date.now());
-
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
 
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunks, { type: "audio/wav" });
-        setAudioBlob(blob);
-        stream.getTracks().forEach((track) => track.stop());
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+        setAudioURL(URL.createObjectURL(audioBlob));
+        audioChunksRef.current = [];
+
+        // Calculate duration
+        const duration = (Date.now() - (startTimeRef.current || 0)) / 1000; // in seconds
+        console.log("Recording duration:", duration, "seconds");
+
+        await sendToTranscriptionService(audioBlob, duration);
       };
-    });
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      startTimeRef.current = Date.now(); // Save the start time
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      setError(
+        "Unable to access your microphone. Please check your permissions."
+      );
+    }
   };
 
-  const stopRecording = async () => {
-    setIsRecording(false);
-    const recordingEndTime = Date.now();
-    const duration = recordingStartTime
-      ? (recordingEndTime - recordingStartTime) / 1000
-      : 0;
-    setRecordingStartTime(null);
-
+  const stopRecording = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
+  };
 
-    if (audioBlob) {
-      // Call the API with audioBlob, duration, and expected text
-      const formData = new FormData();
-      formData.append("file", audioBlob);
-      formData.append("expected_text", questions[currentIndex]);
-      formData.append("duration", duration.toString());
+  const sendToTranscriptionService = async (
+    audioBlob: Blob,
+    duration: number
+  ) => {
+    const formData = new FormData();
+    formData.append("file", audioBlob);
+    formData.append("expected_text", questions[currentIndex]);
+    formData.append("duration", duration.toString()); // Send duration to the server
 
-      try {
-        const response = await fetch("http://127.0.0.1:8000/analyze_audio/", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await response.json();
+    try {
+      const response = await fetch("http://127.0.0.1:8000/analyze_audio/", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
 
-        if (data) {
-          setReadingSpeed((prev) => prev + data.reading_speed_wpm);
-          setReadingAccuracy((prev) => prev + data.accuracy);
-        } else {
-          console.error("Error analyzing audio:", data.message);
-        }
-      } catch (error) {
-        console.error("API request failed:", error);
+      if (data) {
+        setReadingSpeed((prev) => prev + data.reading_speed_wpm);
+        setReadingAccuracy((prev) => prev + data.accuracy);
+      } else {
+        console.error("Error analyzing audio:", data.message);
       }
+    } catch (error) {
+      console.error("API request failed:", error);
     }
   };
 
   const nextQuestion = () => {
     if (currentIndex < questions.length - 1) {
-      console.log(readingAccuracy);
-      console.log(readingAccuracy);
       setCurrentIndex((prev) => prev + 1);
-      setAudioBlob(null); // Reset audioBlob for the next question
     } else {
       const avgSpeed = readingSpeed / questions.length;
       const avgAccuracy = readingAccuracy / questions.length;
-      console.log(avgAccuracy, avgSpeed);
 
       navigate("/math-quiz", {
         state: { readingSpeed: avgSpeed, readingAccuracy: avgAccuracy },
@@ -113,10 +116,12 @@ const ReadingTest: React.FC = () => {
       <button
         onClick={nextQuestion}
         className="ml-4 px-4 py-2 bg-blue-600 text-white rounded"
-        disabled={isRecording} // Disable "Next" while recording
+        disabled={isRecording}
       >
         Next
       </button>
+      {audioURL && <audio src={audioURL} controls className="mt-4" />}
+      {error && <p className="text-red-600 mt-4">{error}</p>}
     </div>
   );
 };
