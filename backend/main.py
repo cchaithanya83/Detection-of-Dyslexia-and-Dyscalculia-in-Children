@@ -5,9 +5,11 @@ import joblib
 import aiofiles
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import  HTTPException
+from fastapi import  HTTPException,  Form
 import assemblyai as aai
 import os
+from fastapi.responses import JSONResponse
+import time
 
 # Set up the AssemblyAI API key
 aai.settings.api_key = "5f8d153d9b08430aa5f45b5245b518a2"
@@ -36,7 +38,7 @@ class PredictionRequest(BaseModel):
     Reading_Accuracy: float
     Math_Speed: float
     Math_Accuracy: float
-    Attention_Span: float
+    # Attention_Span: float
     Memory_Score: float
     
     
@@ -64,7 +66,6 @@ async def predict(request: PredictionRequest):
         request.Reading_Accuracy,
         request.Math_Speed,
         request.Math_Accuracy,
-        request.Attention_Span,
         request.Memory_Score,
     ]
     predicted_condition = predict_condition(features)
@@ -101,6 +102,80 @@ async def transcribe_audio(file: UploadFile = File(...)):
     
     finally:
         # Clean up the temporary file
+        try:
+            os.remove(temp_file_path)
+        except Exception as e:
+            print(f"Error deleting temp file: {e}")
+            
+            
+            
+            
+
+
+@app.post("/analyze_audio/")
+async def analyze_audio(
+    file: UploadFile = File(...),
+    expected_text: str = Form(...),
+    duration: float = Form(...)  # Accept duration as a float
+):
+    """
+    API to transcribe audio, calculate transcription accuracy, and reading speed.
+    """
+    temp_file_path = f"temp_{file.filename}"
+
+    try:
+        # Save the uploaded audio file temporarily
+        async with aiofiles.open(temp_file_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+
+        # Create a transcriber object
+
+        # Transcribe the audio file
+        # Create a transcriber object
+        transcriber = aai.Transcriber()
+
+        # Start timing the transcription process
+
+        # Transcribe the audio file
+        transcript = transcriber.transcribe(temp_file_path)
+
+        # Calculate time taken for reading
+
+        if transcript.status == aai.TranscriptStatus.error:
+            raise HTTPException(status_code=400, detail=f"Error in transcription: {transcript.error}")
+
+        transcribed_text = transcript.text
+
+        # Calculate accuracy
+        expected_words = expected_text.split()
+        transcribed_words = transcribed_text.split()
+
+        correct_word_count = sum(
+            1 for i, word in enumerate(expected_words)
+            if i < len(transcribed_words) and word == transcribed_words[i]
+        )
+        total_words = len(expected_words)
+
+        accuracy = (correct_word_count / total_words) * 100 if total_words > 0 else 0
+
+        # Calculate reading speed (words per minute)
+        if duration <= 0:
+            raise HTTPException(status_code=400, detail="Duration must be greater than 0.")
+
+        words_per_minute = (len(transcribed_words) / duration) * 60
+
+        return JSONResponse(
+            content={
+                "transcription": transcribed_text,
+                "accuracy": round(accuracy, 2),
+                "reading_speed_wpm": round(words_per_minute, 2),
+                "reading_time_seconds": round(duration, 2),
+            }
+        )
+
+    finally:
+        # Clean up temporary file
         try:
             os.remove(temp_file_path)
         except Exception as e:
