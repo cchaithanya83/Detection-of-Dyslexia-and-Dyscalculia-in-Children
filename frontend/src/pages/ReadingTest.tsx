@@ -1,8 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const ReadingTest: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0); // Counter for recording duration
   const [readingSpeed, setReadingSpeed] = useState(0);
   const [readingAccuracy, setReadingAccuracy] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -10,13 +11,15 @@ const ReadingTest: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const startTimeRef = useRef<number | null>(null); // To track the start time
+  const startTimeRef = useRef<number | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timer | null>(null);
   const navigate = useNavigate();
 
   const questions = [
-    "This is a sample sentence for you to read aloud.",
-    "React is a powerful library for building user interfaces.",
-    "Tailwind CSS provides utility-first styling.",
+    "The bright yellow butterfly gently landed on the blooming flower in the garden.",
+    "On sunny afternoons, children love to play outside and ride their colorful bicycles.",
+    "Every morning, the farmer feeds the chickens, waters the crops, and prepares for the day.",
+    "In the library, people quietly read books, take notes, and explore stories from around the world.",
   ];
 
   const startRecording = async () => {
@@ -34,9 +37,10 @@ const ReadingTest: React.FC = () => {
         });
         setAudioURL(URL.createObjectURL(audioBlob));
         audioChunksRef.current = [];
+        clearInterval(timerIntervalRef.current!); // Stop the timer
+        setRecordingTime(0);
 
-        // Calculate duration
-        const duration = (Date.now() - (startTimeRef.current || 0)) / 1000; // in seconds
+        const duration = (Date.now() - (startTimeRef.current || 0)) / 1000;
         console.log("Recording duration:", duration, "seconds");
 
         await sendToTranscriptionService(audioBlob, duration);
@@ -44,8 +48,13 @@ const ReadingTest: React.FC = () => {
 
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
-      startTimeRef.current = Date.now(); // Save the start time
+      startTimeRef.current = Date.now();
       setIsRecording(true);
+
+      // Start the timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
     } catch (error) {
       console.error("Error starting recording:", error);
       setError(
@@ -68,7 +77,7 @@ const ReadingTest: React.FC = () => {
     const formData = new FormData();
     formData.append("file", audioBlob);
     formData.append("expected_text", questions[currentIndex]);
-    formData.append("duration", duration.toString()); // Send duration to the server
+    formData.append("duration", duration.toString());
 
     try {
       const response = await fetch("http://127.0.0.1:8000/analyze_audio/", {
@@ -102,26 +111,55 @@ const ReadingTest: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-2xl font-bold mb-4">Reading Test</h1>
-      <p className="mb-6">{questions[currentIndex]}</p>
-      <button
-        onClick={isRecording ? stopRecording : startRecording}
-        className={`px-4 py-2 text-white ${
-          isRecording ? "bg-red-600" : "bg-green-600"
-        } rounded`}
-      >
-        {isRecording ? "Stop Recording" : "Start Recording"}
-      </button>
-      <button
-        onClick={nextQuestion}
-        className="ml-4 px-4 py-2 bg-blue-600 text-white rounded"
-        disabled={isRecording}
-      >
-        Next
-      </button>
-      {audioURL && <audio src={audioURL} controls className="mt-4" />}
-      {error && <p className="text-red-600 mt-4">{error}</p>}
+    <div className="p-8 bg-gray-100 min-h-screen">
+      {/* Title Section */}
+      <h1 className="text-4xl font-bold text-blue-600 mb-6 text-center">
+        Reading Test
+      </h1>
+      <p className="text-lg text-gray-700 mb-8 text-center">
+        Read the sentence below aloud as quickly and accurately as you can.
+        Press "Start Recording" to begin.
+      </p>
+
+      {/* Sentence Display */}
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <p className="text-2xl font-bold text-center text-gray-800">
+          {questions[currentIndex]}
+        </p>
+      </div>
+
+      {/* Buttons Section */}
+      <div className="flex justify-center items-center space-x-4">
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`px-6 py-3 text-white text-lg font-semibold rounded-lg ${
+            isRecording
+              ? "bg-red-600 hover:bg-red-700"
+              : "bg-green-600 hover:bg-green-700"
+          } transition duration-300`}
+        >
+          {isRecording ? "Stop Recording" : "Start Recording"}
+        </button>
+        <button
+          onClick={nextQuestion}
+          className="px-6 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition duration-300"
+          disabled={isRecording}
+        >
+          Next
+        </button>
+      </div>
+
+      {/* Timer and Audio */}
+      {isRecording && (
+        <p className="text-center text-lg text-gray-700 mt-4">
+          Recording time:{" "}
+          <span className="font-semibold">{recordingTime}s</span>
+        </p>
+      )}
+      {audioURL && <audio src={audioURL} controls className="mt-6 w-full" />}
+
+      {/* Error Message */}
+      {error && <p className="text-red-600 mt-4 text-center">{error}</p>}
     </div>
   );
 };

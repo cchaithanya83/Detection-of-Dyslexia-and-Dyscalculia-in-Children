@@ -1,5 +1,4 @@
-// pages/Results.tsx
-import React from "react";
+import React, { useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 
@@ -12,6 +11,8 @@ const Results: React.FC = () => {
     mathSpeed,
     memoryScore,
   } = location.state;
+
+  const [prediction, setPrediction] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     const payload = {
@@ -27,9 +28,10 @@ const Results: React.FC = () => {
         "http://127.0.0.1:8000/predict",
         payload
       );
-      console.log(response.data);
+      setPrediction(response.data["Predicted Condition"]);
     } catch (error) {
-      console.error(error);
+      console.error("Error submitting results:", error);
+      setPrediction("An error occurred while fetching the prediction.");
     }
   };
 
@@ -42,6 +44,19 @@ const Results: React.FC = () => {
       >
         Submit Results
       </button>
+      {prediction && (
+        <div className="mt-6 p-4 bg-white shadow rounded">
+          <h2 className="text-lg font-semibold">Prediction Result</h2>
+          <p className="mt-2 text-gray-700">
+            <span className="font-medium">Predicted Condition:</span>{" "}
+            {prediction}
+          </p>
+          <p className="mt-2 text-gray-600">
+            Note: The above prediction is based on the provided scores and may
+            require further assessment by a professional.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
