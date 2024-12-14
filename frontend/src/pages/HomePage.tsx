@@ -10,11 +10,16 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header Section */}
-      <header className="bg-blue-600 text-white text-center py-6">
+      <header className="bg-blue-600 text-white flex justify-between items-center px-8 py-4">
         <h1 className="text-4xl font-bold">
           Detection of Dyslexia and Dyscalculia in Children
         </h1>
+        <button
+          onClick={() => navigate("/user-details")}
+          className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition duration-300"
+        >
+          View All User Details
+        </button>
       </header>
 
       {/* Project Information Section */}

@@ -9,6 +9,9 @@ from fastapi import  HTTPException,  Form
 import assemblyai as aai
 import os
 from fastapi.responses import JSONResponse
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 import time
 
 # Set up the AssemblyAI API key
@@ -21,6 +24,26 @@ label_encoder = joblib.load("model/label_encoder.pkl")
 
 # Define the FastAPI app
 app = FastAPI()
+
+
+DATABASE_URL = "sqlite:///./results.db"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Database model
+class Result(Base):
+    __tablename__ = "results"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    reading_speed = Column(Float)
+    reading_accuracy = Column(Float)
+    math_speed = Column(Float)
+    math_accuracy = Column(Float)
+    memory_score = Column(Float)
+    predicted_condition = Column(String)
+
+Base.metadata.create_all(bind=engine)
 
 # CORS setup to allow all origins
 origins = ["*"]  # Allow all domains
@@ -41,7 +64,11 @@ class PredictionRequest(BaseModel):
     # Attention_Span: float
     Memory_Score: float
     
+class ResultInput(PredictionRequest):
+    Name: str
+    Predicted_Condition: str  
     
+
 # Pydantic model to define the input data structure
 class AudioFile(BaseModel):
     file_url: str
@@ -69,6 +96,8 @@ async def predict(request: PredictionRequest):
         request.Memory_Score,
     ]
     predicted_condition = predict_condition(features)
+    if(predicted_condition=='both'):
+        return {"Predicted Condition": "Dyslexia and Dyscalculia"}
     return {"Predicted Condition": predicted_condition}
 
 
@@ -180,3 +209,52 @@ async def analyze_audio(
             os.remove(temp_file_path)
         except Exception as e:
             print(f"Error deleting temp file: {e}")
+            
+            
+            
+@app.post("/results")
+async def save_results(input: ResultInput):
+    db = SessionLocal()
+    try:
+        result = Result(
+            name=input.Name,
+            reading_speed=input.Reading_Speed,
+            reading_accuracy=input.Reading_Accuracy,
+            math_speed=input.Math_Speed,
+            math_accuracy=input.Math_Accuracy,
+            memory_score=input.Memory_Score,
+            predicted_condition=input.Predicted_Condition,
+        )
+        db.add(result)
+        db.commit()
+        return {"message": "Result saved successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save results")
+    finally:
+        db.close()
+        
+        
+        
+@app.get("/results")
+async def get_all_results():
+    db = SessionLocal()
+    try:
+        results = db.query(Result).all()
+        return [
+            {
+                "id": result.id,
+                "name": result.name,
+                "reading_speed": result.reading_speed,
+                "reading_accuracy": result.reading_accuracy,
+                "math_speed": result.math_speed,
+                "math_accuracy": result.math_accuracy,
+                "memory_score": result.memory_score,
+                "predicted_condition": result.predicted_condition,
+            }
+            for result in results
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch results")
+    finally:
+        db.close()

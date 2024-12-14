@@ -43,7 +43,7 @@ const MathQuiz: React.FC = () => {
       setTimeTaken(totalTime);
 
       const totalMinutes = totalTime / 60000;
-      const problemsPerHour = (mathQuestions.length / totalMinutes) * 60;
+      const problemsPerHour = (mathQuestions.length / totalMinutes) * 3;
       const correctAnswers = answers.filter(
         (ans, idx) => ans === mathQuestions[idx].answer
       ).length;
