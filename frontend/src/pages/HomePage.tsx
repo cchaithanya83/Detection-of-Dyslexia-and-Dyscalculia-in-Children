@@ -24,13 +24,13 @@ const HomePage: React.FC = () => {
 
       {/* Project Information Section */}
       <section className="px-8 py-12">
-        <h2 className="text-3xl font-semibold mb-4">About the Project</h2>
+        <h2 className="text-3xl font-semibold mb-4">About</h2>
         <p className="text-lg text-gray-700">
-          This project aims to detect signs of Dyslexia and Dyscalculia in
-          children through a series of interactive tests. By evaluating the
-          reading speed, math quiz performance, and memory accuracy of children,
-          the project helps identify potential learning disabilities and
-          provides insight into their learning patterns.
+          This aims to detect signs of Dyslexia and Dyscalculia in children
+          hrough a series of interactive tests. By evaluating the reading speed,
+          math quiz performance, and memory accuracy of children, the project
+          helps identify potential learning disabilities and provides insight
+          into their learning patterns.
         </p>
       </section>
 
